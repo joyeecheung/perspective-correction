@@ -4,7 +4,7 @@
 import os
 import argparse
 
-from PIL import Image
+import cv2
 
 from files import NamesGetter
 from perspective import correct_perspective
@@ -15,7 +15,7 @@ IMG_NAMES = ()
 
 def generate_results(src, dest):
     print 'processing', src + '...'
-    im = Image.open(src)
+    im = cv2.imread(src)
     edges, lines, corners, final = correct_perspective(im)
     edges.save(dest % 'edges')
     lines.save(dest % 'lines')
@@ -32,10 +32,13 @@ def main():
 
     if args.input is not None:
       src, dest = get_name_pair(args.input)
+      generate_results(src, dest)
 
     else:
       for name in IMG_NAMES:
         src, dest = get_name_pair(name)
+        generate_results(src, dest)
+
 
 if __name__ == '__main__':
     main()
