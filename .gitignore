@@ -1,0 +1,5 @@
+dataset
+result
+canny.py
+*.jpg
+*.pyc

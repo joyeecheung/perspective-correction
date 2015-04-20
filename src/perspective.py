@@ -30,8 +30,8 @@ def get_intersections(img, lines):
 
   return intersections
 
-def annotate_intersections(lines_annotated, intersections):
-  temp = np.array(lines_annotated)
+def annotate_intersections(img, intersections):
+  temp = np.array(img)
   for row in intersections:
     for col in row:
       if len(col) > 0:
@@ -39,9 +39,15 @@ def annotate_intersections(lines_annotated, intersections):
 
   return temp
 
+def annotate_corners(img, corners):
+  temp = np.array(img)
+  for x, y in corners:
+    cv2.circle(temp, (x, y), 20, (0, 255, 0), 10)
+  return temp
+
 def get_corners(lines, intersections):
   candidate_lines = [i for i in xrange(len(lines))
-                     if np.sum(intersections[i:] > 1]
+                     if np.sum(intersections[i:]) > 1]
   if len(candidate_lines) == 4:
     return [intersections[i][j] for i, j in
             combinations(candidate_lines, 2) if len(intersections[i][j]) > 0]
@@ -79,7 +85,7 @@ def eliminate_duplicates(img, lines, threshold):
 def distance(line_a, line_b):
   rho_a, theta_a = line_a
   rho_b, theta_b = line_b
-  result = np.pow(rho_a, 2) + np.pow(rho_b, 2)
+  result = np.power(rho_a, 2) + np.power(rho_b, 2)
   result -= 2*rho_b*rho_a* np.cos(theta_a - theta_b)
   return result
 
@@ -90,7 +96,6 @@ def to_cartesian(img, lines):
   for rho, theta in lines:
     a, b = np.cos(theta), np.sin(theta)
     x0, y0 = a * rho, b * rho
-    print "x0 = %f, y0 = %f, rho = %f, theta = %f" %(x0, y0, rho, theta)
     x1, y1 = int(x0 + coff * (-b)), int(y0 + coff * (a))
     x2, y2 = int(x0 - coff * (-b)), int(y0 - coff * (a))
     cartesian.append((x1, y1, x2, y2))
@@ -104,49 +109,71 @@ def annotate_lines(img, lines):
 
   return annnotated.astype(np.uint8)
 
-def eliminate_duplicates(lines):
+def show(img):
+  Image.fromarray(img).show()
 
 def correct_perspective(img, threshold_max=200,
                         threshold_min=60,
                         gaussian_blur_size=7,
-                        median_blur_size=31
+                        median_blur_size=31,
                         rho=1,
                         theta=np.pi/180,
                         threshold_intersect=400,
                         threshold_distance=0.5):
-  # ------------- get binary image -----------
-gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-gray_im = Image.fromarray(gray)
 
-# ------------- blur -----------------------
-# blurred = cv2.GaussianBlur(gray, (gaussian_blur_size, gaussian_blur_size), 0)
-blurred = cv2.medianBlur(gray, median_blur_size)
-blurred_im = Image.fromarray(blurred)
+  # threshold_max=200
+  # threshold_min=60
+  # gaussian_blur_size=7
+  # median_blur_size=31
+  # rho=1
+  # theta=np.pi/180
+  # threshold_intersect=400
+  # threshold_distance=0.5
+    # ------------- get binary image -----------
+  gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+  gray_im = Image.fromarray(gray)
 
-# ------------- detect edges ---------------
-edges = cv2.Canny(blurred, threshold_min, threshold_max)
-edges_im = Image.fromarray(edges)
+  # ------------- blur -----------------------
+  # blurred = cv2.GaussianBlur(gray, (gaussian_blur_size, gaussian_blur_size), 0)
+  blurred = cv2.medianBlur(gray, median_blur_size)
+  blurred_im = Image.fromarray(blurred)
 
-# ------------- get lines ------------------
-lines = cv2.HoughLines(edges, rho, theta, threshold_intersect)
-lines = eliminate_duplicates(img, lines, threshold_distance)
-cartesian = to_cartesian(img, lines)
-lines_annotated = annotate_lines(img, cartesian)
+  # ------------- detect edges ---------------
+  edges = cv2.Canny(blurred, threshold_min, threshold_max)
+  edges_im = Image.fromarray(edges)
 
-intersections = get_intersections(img, cartesian)
-intersections_annotated = annotate_intersections(lines_annotated, intersections)
+  # ------------- get lines ------------------
+  lines = cv2.HoughLines(edges, rho, theta, threshold_intersect)
 
-Image.fromarray(intersections_annotated).show()
+  lines = eliminate_duplicates(img, lines, threshold_distance)
+  cartesian = to_cartesian(img, lines)
+  lines_annotated = annotate_lines(img, cartesian)
+
+  intersections = get_intersections(img, cartesian)
+  intersections_annotated = annotate_intersections(lines_annotated, intersections)
+
+  Image.fromarray(intersections_annotated).show()
   # ------------- compute corners ------------
-  corners = ...
-  corners_annotated = ...
+  corners = np.array(list(set(i for j in intersections for i in j if len(i) > 0)))
+  corners = np.float32(corners)
+  #corners = get_corners(cartesian, intersections)
+  corners_annotated = annotate_corners(lines_annotated, corners)
 
-  # ------------- warp ----------------------
+      # ------------- warp ----------------------
 
-  # get trasnformation matrix
+      # get trasnformation matrix
 
-  # warp the image
-  final = ...
+      # warp the image
+      # final = ...
+  height, width, _ = img.shape
+  min_coff = min(height, width)
+  new_h, new_w = min_coff, min_coff * 0.707
+  destination = np.float32([[0, 0], [new_w, 0], [new_w, new_h], [0, new_h]])
+  # sort by distance to each destination corner
+  corners = reorder(corners)
+  trans_mat = cv2.getPerspectiveTransform(corners, destination)
+  final = cv2.warpPerspective(img, trans_mat, (width, height))
+
 
   return (gray_im,
           blurred_im,
