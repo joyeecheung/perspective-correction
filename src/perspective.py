@@ -49,6 +49,10 @@ def annotate_corners(img, corners):
   return temp
 
 def get_corners(lines, intersections):
+  if len(lines) == 4:
+    return np.array(list(set(i for j in intersections for i in j if len(i) > 0)),
+                     dtype=np.float32)
+
   candidate_lines = [i for i in xrange(len(lines))
                      if np.sum(intersections[i:]) > 1]
   if len(candidate_lines) == 4:
@@ -123,52 +127,62 @@ def reorder(corners, destination):
 def show(img):
   Image.fromarray(img).show()
 
-def correct_perspective(img, threshold_max=200,
-                        threshold_min=60,
+def correct_perspective(img, threshold_max=140,
+                        threshold_min=30,
                         gaussian_blur_size=7,
-                        median_blur_size=31,
+                        median_blur_size=51,
                         rho=1,
                         theta=np.pi/180,
                         threshold_intersect=250,
-                        threshold_distance=0.05):
+                        threshold_distance=0.05,
+                        temp=True):
 
-  # threshold_max=200
-  # threshold_min=60
-  # gaussian_blur_size=7
-  # median_blur_size=31
-  # rho=1
-  # theta=np.pi/180
-  # threshold_intersect=400
-  # threshold_distance=0.05
-  # ------------- get binary image -----------
+# threshold_max=100
+# threshold_min=10
+# gaussian_blur_size=7
+# median_blur_size=31
+# rho=1
+# theta=np.pi/180
+# threshold_intersect=250
+# threshold_distance=0.05
+# temp = True
+# ------------- get binary image -----------
   gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-  gray_im = Image.fromarray(gray)
+  if temp:
+    gray_im = Image.fromarray(gray)
 
   # ------------- blur -----------------------
   # blurred = cv2.GaussianBlur(gray, (gaussian_blur_size, gaussian_blur_size), 0)
   blurred = cv2.medianBlur(gray, median_blur_size)
-  blurred_im = Image.fromarray(blurred)
+  if temp:
+    blurred_im = Image.fromarray(blurred)
 
   # ------------- detect edges ---------------
   edges = cv2.Canny(blurred, threshold_min, threshold_max)
-  edges_im = Image.fromarray(edges)
+  if temp:
+    edges_im = Image.fromarray(edges)
+    edges_im.save('edges.jpg')
 
   # ------------- get lines ------------------
   lines = cv2.HoughLines(edges, rho, theta, threshold_intersect)
-
   lines = eliminate_duplicates(img, lines, threshold_distance)
   cartesian = to_cartesian(img, lines)
-  lines_annotated = Image.fromarray(annotate_lines(img, cartesian))
+  print "lines"
+  print lines
+
+  if temp:
+    lines_annotated = Image.fromarray(annotate_lines(img, cartesian))
 
   intersections = get_intersections(img, cartesian)
-  intersections_annotated = annotate_intersections(lines_annotated, intersections)
+  if temp:
+    intersections_annotated = annotate_intersections(lines_annotated, intersections)
+    Image.fromarray(intersections_annotated).save('intersections.jpg')
 
   # ------------- compute corners ------------
-  corners = np.array(list(set(i for j in intersections for i in j if len(i) > 0)))
-  corners = np.float32(corners)
+  corners = get_corners(lines, intersections)
   print "number of corners: ", len(corners)
-  #corners = get_corners(cartesian, intersections)
-  corners_annotated = Image.fromarray(annotate_corners(lines_annotated, corners))
+  if temp:
+    corners_annotated = Image.fromarray(annotate_corners(lines_annotated, corners))
 
   # ------------- warp ----------------------
 
@@ -185,16 +199,23 @@ def correct_perspective(img, threshold_max=200,
   trans_mat = cv2.getPerspectiveTransform(corners, destination)
   final = cv2.warpPerspective(img, trans_mat, (new_w, new_h))
 
-  return (gray_im,
-          blurred_im,
-          edges_im,
-          lines_annotated,
-          corners_annotated,
-          Image.fromarray(final))
+  if temp:
+    return (gray_im,
+            blurred_im,
+            edges_im,
+            lines_annotated,
+            corners_annotated,
+            Image.fromarray(final))
+  else:
+    return (Image.fromarray(final),)
 
 def check():
   images = glob.glob('../dataset/easy/*.jpg')
+  # images = ['../dataset/easy/IMG_20150320_143220.jpg','../dataset/easy/IMG_20150410_091123.jpg']
   for i in images:
     print "Checking", i
     img = np.asarray(Image.open(i))
     result = correct_perspective(img)
+
+if __name__ == '__main__':
+  check()
