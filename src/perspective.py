@@ -74,7 +74,6 @@ def get_corners(lines, intersections):
         # the more likely that they are the paper lines
 
 def filter_regular(lines, margin=np.pi/18):
-  print lines
   regular = np.pi/2
   count = np.zeros(len(lines))
 
@@ -89,23 +88,31 @@ def filter_regular(lines, margin=np.pi/18):
 
 
 def eliminate_duplicates(img, lines, threshold):
-  eliminated = np.zeros(lines.shape[1], dtype=bool)
+  eliminated = np.zeros(len(lines), dtype=bool)
   min_distance = max(img.shape) * threshold
-  idxs = combinations(xrange(len(lines[0])), 2)
+  min_theta = np.pi * threshold
+  idxs = combinations(xrange(len(lines)), 2)
 
   for i, j in idxs:
     if eliminated[i] or eliminated[j]:
       continue
-    if line_distance(lines[0][i], lines[0][j]) < min_distance:
-      eliminated[j] = True
 
-  return lines[0][eliminated == False]
+    line_a, line_b = lines[i], lines[j]
+    theta_diff = abs(line_a[1] - line_b[1])
+    if theta_diff > np.pi / 2:
+      theta_diff = np.pi - theta_diff
+    
+    if line_distance(line_a, line_b) < min_distance and theta_diff < min_theta:
+      eliminated[i] = True
+
+  return lines[eliminated == False]
 
 def line_distance(line_a, line_b):
   rho_a, theta_a = line_a
   rho_b, theta_b = line_b
-  result = np.power(rho_a, 2) + np.power(rho_b, 2)
-  result -= 2*rho_b*rho_a* np.cos(theta_a - theta_b)
+
+  result = rho_a ** 2 + rho_b ** 2
+  result -= 2*rho_b*rho_a * np.cos(theta_a - theta_b)
   return np.sqrt(result)
 
 def to_cartesian(img, lines):
@@ -128,12 +135,20 @@ def annotate_lines(img, lines):
 
   return annnotated.astype(np.uint8)
 
-
-def reorder(corners, destination):
+def reorder(corners):
   new_corners = np.array(corners)
+  mean = np.mean(corners, axis=0)
+
   for corner in corners:
-    idx = np.argmin(np.sum(np.square(corner - destination), axis=1))
-    new_corners[idx] = corner
+    if corner[0] < mean[0] and corner[1] < mean[1]: # upper-left
+      new_corners[0] = corner
+    if corner[0] > mean[0] and corner[1] < mean[1]: # upper-right
+      new_corners[1] = corner
+    if corner[0] > mean[0] and corner[1] > mean[1]: # lower-right
+      new_corners[2] = corner
+    if corner[0] < mean[0] and corner[1] > mean[1]: # lower-left
+      new_corners[3] = corner
+
   return new_corners
 
 def show(img):
@@ -146,7 +161,7 @@ def correct_perspective(img, threshold_max=140,
                         rho=1,
                         theta=np.pi/180,
                         threshold_intersect=250,
-                        threshold_distance=0.05,
+                        threshold_distance=0.15,
                         temp=True):
 
 # threshold_max=100
@@ -177,20 +192,21 @@ def correct_perspective(img, threshold_max=140,
 
   # ------------- get lines ------------------
   lines = cv2.HoughLines(edges, rho, theta, threshold_intersect)
+
+  lines = filter_regular(lines[0])
   lines = eliminate_duplicates(img, lines, threshold_distance)
 
-  lines = filter_regular(lines)
   while (len(lines) < 4):
     threshold_intersect -= 10
     lines = cv2.HoughLines(edges, rho, theta, threshold_intersect)
+    lines = filter_regular(lines[0])
     lines = eliminate_duplicates(img, lines, threshold_distance)
-    lines = filter_regular(lines)
 
   cartesian = to_cartesian(img, lines)
 
-
   if temp:
     lines_annotated = Image.fromarray(annotate_lines(img, cartesian))
+    # lines_annotated.show()#save('lines.jpg')
 
   intersections = get_intersections(img, cartesian)
   if temp:
@@ -202,9 +218,9 @@ def correct_perspective(img, threshold_max=140,
   print "number of corners: ", len(corners)
   if temp:
     corners_annotated = Image.fromarray(annotate_corners(lines_annotated, corners))
+    corners_annotated.save('corners.jpg')
 
   # ------------- warp ----------------------
-
   height, width, _ = img.shape
   min_coff = min(height, width)
   if height > width:
@@ -212,9 +228,11 @@ def correct_perspective(img, threshold_max=140,
   else:
     new_h, new_w = int(min_coff * 0.707), int(min_coff)
   destination = np.float32([[0, 0], [new_w, 0], [new_w, new_h], [0, new_h]])
-
+  old_corners = np.float32([[0, 0], [width, 0], [width, height], [0, height]])
+  print corners
   # sort by distance to each destination corner
-  corners = reorder(corners, destination)
+  corners = reorder(corners)
+  print corners
   trans_mat = cv2.getPerspectiveTransform(corners, destination)
   final = cv2.warpPerspective(img, trans_mat, (new_w, new_h))
 
@@ -229,8 +247,7 @@ def correct_perspective(img, threshold_max=140,
     return (Image.fromarray(final),)
 
 def check():
-  images = glob.glob('../dataset/hard/*.jpg')
-  # images = ['../dataset/easy/IMG_20150320_143220.jpg','../dataset/easy/IMG_20150410_091123.jpg']
+  images = glob.glob('../dataset/easy/*.jpg')
   for i in images:
     print "Checking", i
     img = np.asarray(Image.open(i))
