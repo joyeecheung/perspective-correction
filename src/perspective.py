@@ -4,6 +4,9 @@
 from PIL import Image
 import numpy as np
 import cv2
+from operator import itemgetter
+from math import sqrt
+import glob
 
 def get_intersections(img, lines):
   height, width, _ = img.shape
@@ -66,7 +69,7 @@ def get_corners(lines, intersections):
         # the more likely that they are the paper lines
 
 def eliminate_duplicates(img, lines, threshold):
-  eliminated = [False for i in xrange(len(lines[0]))]
+  eliminated = np.zeros(lines.shape[1], dtype=bool)
   min_distance = max(img.shape) * threshold
 
   for i, line_a in enumerate(lines[0]):
@@ -77,17 +80,17 @@ def eliminate_duplicates(img, lines, threshold):
       if eliminated[j]:
         continue
 
-      if distance(line_a, line_b) < min_distance and i != j:
+      if line_distance(line_a, line_b) < min_distance and i != j:
         eliminated[j] = True
 
-  return [lines[0][i] for i in xrange(len(lines[0])) if not eliminated[i]]
+  return lines[0][eliminated == False]
 
-def distance(line_a, line_b):
+def line_distance(line_a, line_b):
   rho_a, theta_a = line_a
   rho_b, theta_b = line_b
   result = np.power(rho_a, 2) + np.power(rho_b, 2)
   result -= 2*rho_b*rho_a* np.cos(theta_a - theta_b)
-  return result
+  return np.sqrt(result)
 
 def to_cartesian(img, lines):
   height, width, _ = img.shape
@@ -109,6 +112,14 @@ def annotate_lines(img, lines):
 
   return annnotated.astype(np.uint8)
 
+
+def reorder(corners, destination):
+  new_corners = np.array(corners)
+  for corner in corners:
+    idx = np.argmin(np.sum(np.square(corner - destination), axis=1))
+    new_corners[idx] = corner
+  return new_corners
+
 def show(img):
   Image.fromarray(img).show()
 
@@ -118,8 +129,8 @@ def correct_perspective(img, threshold_max=200,
                         median_blur_size=31,
                         rho=1,
                         theta=np.pi/180,
-                        threshold_intersect=400,
-                        threshold_distance=0.5):
+                        threshold_intersect=250,
+                        threshold_distance=0.05):
 
   # threshold_max=200
   # threshold_min=60
@@ -128,8 +139,8 @@ def correct_perspective(img, threshold_max=200,
   # rho=1
   # theta=np.pi/180
   # threshold_intersect=400
-  # threshold_distance=0.5
-    # ------------- get binary image -----------
+  # threshold_distance=0.05
+  # ------------- get binary image -----------
   gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
   gray_im = Image.fromarray(gray)
 
@@ -147,33 +158,32 @@ def correct_perspective(img, threshold_max=200,
 
   lines = eliminate_duplicates(img, lines, threshold_distance)
   cartesian = to_cartesian(img, lines)
-  lines_annotated = annotate_lines(img, cartesian)
+  lines_annotated = Image.fromarray(annotate_lines(img, cartesian))
 
   intersections = get_intersections(img, cartesian)
   intersections_annotated = annotate_intersections(lines_annotated, intersections)
 
-  Image.fromarray(intersections_annotated).show()
   # ------------- compute corners ------------
   corners = np.array(list(set(i for j in intersections for i in j if len(i) > 0)))
   corners = np.float32(corners)
+  print "number of corners: ", len(corners)
   #corners = get_corners(cartesian, intersections)
-  corners_annotated = annotate_corners(lines_annotated, corners)
+  corners_annotated = Image.fromarray(annotate_corners(lines_annotated, corners))
 
-      # ------------- warp ----------------------
+  # ------------- warp ----------------------
 
-      # get trasnformation matrix
-
-      # warp the image
-      # final = ...
   height, width, _ = img.shape
   min_coff = min(height, width)
-  new_h, new_w = min_coff, min_coff * 0.707
+  if height > width:
+    new_h, new_w = int(min_coff), int(min_coff * 0.707)
+  else:
+    new_h, new_w = int(min_coff * 0.707), int(min_coff)
   destination = np.float32([[0, 0], [new_w, 0], [new_w, new_h], [0, new_h]])
-  # sort by distance to each destination corner
-  corners = reorder(corners)
-  trans_mat = cv2.getPerspectiveTransform(corners, destination)
-  final = cv2.warpPerspective(img, trans_mat, (width, height))
 
+  # sort by distance to each destination corner
+  corners = reorder(corners, destination)
+  trans_mat = cv2.getPerspectiveTransform(corners, destination)
+  final = cv2.warpPerspective(img, trans_mat, (new_w, new_h))
 
   return (gray_im,
           blurred_im,
@@ -181,3 +191,10 @@ def correct_perspective(img, threshold_max=200,
           lines_annotated,
           corners_annotated,
           Image.fromarray(final))
+
+def check():
+  images = glob.glob('../dataset/easy/*.jpg')
+  for i in images:
+    print "Checking", i
+    img = np.asarray(Image.open(i))
+    result = correct_perspective(img)
