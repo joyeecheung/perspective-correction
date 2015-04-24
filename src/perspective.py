@@ -50,28 +50,8 @@ def annotate_corners(img, corners):
   return temp
 
 def get_corners(lines, intersections):
-  if len(lines) == 4:
-    return np.array(list(set(i for j in intersections for i in j if len(i) > 0)),
-                     dtype=np.float32)
-
-  candidate_lines = [i for i in xrange(len(lines))
-                     if np.sum(intersections[i:]) > 1]
-  if len(candidate_lines) == 4:
-    return [intersections[i][j] for i, j in
-            combinations(candidate_lines, 2) if len(intersections[i][j]) > 0]
-
-  else:
-    # pick line a
-    for i, line_a in enumerate(candidate_lines):
-      # pick b and c that intersects a
-      b_c_candidate = [j for j in candidate_lines
-                       if len(intersections[j][i]) > 0 and i != j]
-      for b, c in combinations(b_c_candidate, 2):
-        # pick d that intersects b and c and is not a
-        line_b, line_c = lines[b], lines[c]
-        # store angles between a and d, b and c
-        # the more they are close to 180
-        # the more likely that they are the paper lines
+  return np.array(list(set(i for j in intersections for i in j if len(i) > 0)),
+                  dtype=np.float32)[:4]
 
 def filter_regular(lines, margin=np.pi/18):
   regular = np.pi/2
@@ -85,7 +65,6 @@ def filter_regular(lines, margin=np.pi/18):
       count[b] += 1
 
   return lines[count >= 2]
-
 
 def eliminate_duplicates(img, lines, threshold):
   eliminated = np.zeros(len(lines), dtype=bool)
@@ -164,15 +143,6 @@ def correct_perspective(img, threshold_max=140,
                         threshold_distance=0.15,
                         temp=True):
 
-# threshold_max=100
-# threshold_min=10
-# gaussian_blur_size=7
-# median_blur_size=31
-# rho=1
-# theta=np.pi/180
-# threshold_intersect=250
-# threshold_distance=0.05
-# temp = True
 # ------------- get binary image -----------
   gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
   if temp:
@@ -209,9 +179,6 @@ def correct_perspective(img, threshold_max=140,
     # lines_annotated.show()#save('lines.jpg')
 
   intersections = get_intersections(img, cartesian)
-  if temp:
-    intersections_annotated = annotate_intersections(lines_annotated, intersections)
-    Image.fromarray(intersections_annotated).save('intersections.jpg')
 
   # ------------- compute corners ------------
   corners = get_corners(lines, intersections)
@@ -228,11 +195,8 @@ def correct_perspective(img, threshold_max=140,
   else:
     new_h, new_w = int(min_coff * 0.707), int(min_coff)
   destination = np.float32([[0, 0], [new_w, 0], [new_w, new_h], [0, new_h]])
-  old_corners = np.float32([[0, 0], [width, 0], [width, height], [0, height]])
-  print corners
-  # sort by distance to each destination corner
+
   corners = reorder(corners)
-  print corners
   trans_mat = cv2.getPerspectiveTransform(corners, destination)
   final = cv2.warpPerspective(img, trans_mat, (new_w, new_h))
 
@@ -245,14 +209,3 @@ def correct_perspective(img, threshold_max=140,
             Image.fromarray(final))
   else:
     return (Image.fromarray(final),)
-
-def check():
-  images = glob.glob('../dataset/easy/*.jpg')
-  for i in images:
-    print "Checking", i
-    img = np.asarray(Image.open(i))
-    result = correct_perspective(img)
-    result[-1].save(i.replace('dataset', 'result'))
-
-if __name__ == '__main__':
-  check()
