@@ -5,6 +5,7 @@ from PIL import Image
 import numpy as np
 import cv2
 from operator import itemgetter
+from itertools import combinations
 from math import sqrt
 import glob
 
@@ -72,20 +73,31 @@ def get_corners(lines, intersections):
         # the more they are close to 180
         # the more likely that they are the paper lines
 
+def filter_regular(lines, margin=np.pi/18):
+  print lines
+  regular = np.pi/2
+  count = np.zeros(len(lines))
+
+  idxs = combinations(xrange(len(lines)), 2)
+
+  for a, b in idxs:
+    if abs(abs(lines[a][1] - lines[b][1]) - regular) < margin:
+      count[a] += 1
+      count[b] += 1
+
+  return lines[count >= 2]
+
+
 def eliminate_duplicates(img, lines, threshold):
   eliminated = np.zeros(lines.shape[1], dtype=bool)
   min_distance = max(img.shape) * threshold
+  idxs = combinations(xrange(len(lines[0])), 2)
 
-  for i, line_a in enumerate(lines[0]):
-    if eliminated[i]:
+  for i, j in idxs:
+    if eliminated[i] or eliminated[j]:
       continue
-
-    for j, line_b in enumerate(lines[0]):
-      if eliminated[j]:
-        continue
-
-      if line_distance(line_a, line_b) < min_distance and i != j:
-        eliminated[j] = True
+    if line_distance(lines[0][i], lines[0][j]) < min_distance:
+      eliminated[j] = True
 
   return lines[0][eliminated == False]
 
@@ -166,9 +178,16 @@ def correct_perspective(img, threshold_max=140,
   # ------------- get lines ------------------
   lines = cv2.HoughLines(edges, rho, theta, threshold_intersect)
   lines = eliminate_duplicates(img, lines, threshold_distance)
+
+  lines = filter_regular(lines)
+  while (len(lines) < 4):
+    threshold_intersect -= 10
+    lines = cv2.HoughLines(edges, rho, theta, threshold_intersect)
+    lines = eliminate_duplicates(img, lines, threshold_distance)
+    lines = filter_regular(lines)
+
   cartesian = to_cartesian(img, lines)
-  print "lines"
-  print lines
+
 
   if temp:
     lines_annotated = Image.fromarray(annotate_lines(img, cartesian))
@@ -210,12 +229,13 @@ def correct_perspective(img, threshold_max=140,
     return (Image.fromarray(final),)
 
 def check():
-  images = glob.glob('../dataset/easy/*.jpg')
+  images = glob.glob('../dataset/hard/*.jpg')
   # images = ['../dataset/easy/IMG_20150320_143220.jpg','../dataset/easy/IMG_20150410_091123.jpg']
   for i in images:
     print "Checking", i
     img = np.asarray(Image.open(i))
     result = correct_perspective(img)
+    result[-1].save(i.replace('dataset', 'result'))
 
 if __name__ == '__main__':
   check()
