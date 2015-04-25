@@ -13,10 +13,10 @@ If you can't install python(x,y), You can install python, numpy and python-openc
 1. Install python. Just use the installer from [python's website](https://www.python.org/downloads/)
 2. Install numpy. Just use the installer from [scipy's website](http://www.scipy.org/scipylib/download.html). (You don't need scipy to run this project, so you can just install numpy alone).
 3. Install python-opencv. Download the release from [its sourceforge site](http://sourceforge.net/projects/opencvlibrary/files/). (Choose the release based on your operating system, then choose version 2.4.11). The executable is just an archive. Extract the files, then copy `cv2.pyd` to the `lib/site-packages` folder on your python installation path.
-4. Install pip. Download [the script for installing pip](https://bootstrap.pypa.io/get-pip.py), open cmd, go to the path where the downloaded script resides, and run `python get-pip.py`
+4. Install pip. Download [the script for installing pip](https://bootstrap.pypa.io/get-pip.py), open cmd (or termianl if you are using Linux/Mac OS X), go to the path where the downloaded script resides, and run `python get-pip.py`
 5. Install pillow. Run `pip install pillow`. 
 
-If you are running the code under Linux and the scripts throw `AttributeError: __float__`, make sure your pillow has jpeg support (consult [Pillow's document](http://pillow.readthedocs.org/en/latest/installation.html) e.g. try:
+If you are running the code under Linux/Mac OS X and the scripts throw `AttributeError: __float__`, make sure your pillow has jpeg support (consult [Pillow's document](http://pillow.readthedocs.org/en/latest/installation.html)) e.g. try:
 
 ```
 sudo apt-get install libjpeg-dev
@@ -32,12 +32,11 @@ Enter the `src` directory, run
 
 ```
 python main.py
-
 ```
 
 It will use images under `dataset` directory to produce the results. The results will show up in `result` directory. Intermediate results will be saved too.
 
-To see how long the script will take to generate the results (without saving them or the intermediate images), run
+To see how long the script will need to generate the results (without saving them or the intermediate images), run
 
 ```
 python main.py -t
@@ -48,8 +47,8 @@ python main.py -t
 ```
 .
 ├─ README.md
-├─ doc
-│   └── report.docx
+├─ doc (report and other documents)
+│   └── ...
 ├─ dataset (source images)
 │   └── ...
 ├─ result (the results)
