@@ -28,19 +28,37 @@ If you have any problem installing the dependencies, contact the author.
 
 ## How to generate the results
 
-Enter the `src` directory, run
+1. To generate all results, enter the `src` directory, run
 
-```
-python main.py
-```
+  ```
+  python main.py
+  ```
 
-It will use images under `dataset` directory to produce the results. The results will show up in `result` directory. Intermediate results will be saved too.
+  It will use images under `dataset` directory to produce the results. The results will show up in `result` directory. Intermediate results will be saved too.
 
-To see how long the script will need to generate the results (without saving them or the intermediate images), run
+2. To see how long the script will need to generate the results (without saving them or the intermediate images), run
 
-```
-python main.py -t
-```
+  ```
+  python main.py -t
+  ```
+
+3. To generate resized final results (by 1/3), run
+
+  ```
+  python main.py -r
+  ```
+
+4. To generate intermediate results, run
+
+  ```
+  python main.py -i
+  ```
+
+  Or if you want resized intermidate results:
+
+  ```
+  python main.py -i -r
+  ```
 
 ##Directory structure
 

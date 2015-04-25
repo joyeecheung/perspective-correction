@@ -138,22 +138,22 @@ def correct_perspective(img, threshold_max=140,
                         theta=np.pi/180,
                         threshold_intersect=250,
                         threshold_distance=0.15,
-                        temp=True):
+                        intermediate=True):
 
   # ------------- get binary image -----------
   gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-  if temp:
+  if intermediate:
     gray_im = Image.fromarray(gray)
 
   # ------------- blur -----------------------
   # blurred = cv2.GaussianBlur(gray, (gaussian_blur_size, gaussian_blur_size), 0)
   blurred = cv2.medianBlur(gray, median_blur_size)
-  if temp:
+  if intermediate:
     blurred_im = Image.fromarray(blurred)
 
   # ------------- detect edges ---------------
   edges = cv2.Canny(blurred, threshold_min, threshold_max)
-  if temp:
+  if intermediate:
     edges_im = Image.fromarray(edges)
 
   # ------------- get lines ------------------
@@ -170,7 +170,7 @@ def correct_perspective(img, threshold_max=140,
 
   cartesian = to_cartesian(img, lines)
 
-  if temp:
+  if intermediate:
     lines_annotated = Image.fromarray(annotate_lines(img, cartesian))
 
   intersections = get_intersections(img, cartesian)
@@ -178,7 +178,7 @@ def correct_perspective(img, threshold_max=140,
   # ------------- compute corners ------------
   corners = get_corners(lines, intersections)
   print "number of corners: ", len(corners)
-  if temp:
+  if intermediate:
     corners_annotated = Image.fromarray(annotate_corners(lines_annotated, corners))
 
   # ------------- warp ----------------------
@@ -194,7 +194,7 @@ def correct_perspective(img, threshold_max=140,
   trans_mat = cv2.getPerspectiveTransform(corners, destination)
   final = cv2.warpPerspective(img, trans_mat, (new_w, new_h))
 
-  if temp:
+  if intermediate:
     return (gray_im,
             blurred_im,
             edges_im,

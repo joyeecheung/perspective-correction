@@ -15,21 +15,34 @@ from perspective import correct_perspective
 
 SRC_DIR = 'dataset'
 DEST_DIR = 'result'
+RESULTS = ['gray', 'blur', 'edges', 'lines', 'corners', 'final']
 
-def generate_results(src, dest, temp=True):
+def generate_results(src, dest, time=False,
+                     resize=False, intermediate=True):
     print 'Processing', src + '...'
-    im = np.asarray(Image.open(src))
-    if (temp):
-        gray, blurred, edges, lines, corners, final = correct_perspective(im)
-        gray.save(dest % 'gray')
-        blurred.save(dest % 'blur')
-        edges.save(dest % 'edges')
-        lines.save(dest % 'lines')
-        corners.save(dest % 'corners')
-        final.save(dest % 'final')
-        print 'saved', dest
+    im = Image.open(src)
+    img = np.asarray(im)
+
+    if time:
+        correct_perspective(img, intermediate=False)
+    elif intermediate:
+        results = correct_perspective(img)
+        for idx, result in enumerate(results):
+            if resize:
+                newsize = tuple(int(i/3.0) for i in im.size)
+                result.resize(newsize, Image.ANTIALIAS).save(dest % RESULTS[idx])
+            else:
+                result.save(dest % RESULTS[idx])
+            print 'saved', dest % RESULTS[idx]
     else:
-        correct_perspective(im, temp=temp)
+        final = correct_perspective(img, intermediate=intermediate)[-1]
+        if resize:
+            newsize = tuple(int(i/3.0) for i in im.size)
+            final.resize(newsize, Image.ANTIALIAS).save(dest % 'final')
+        else:
+            final.save(dest % 'final')
+        print 'saved', dest % 'final'
+            
 
 def get_template(filename):
     base, ext = os.path.splitext(filename)
@@ -44,6 +57,8 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--time", action='store_true')
+    parser.add_argument("-r", "--resize", action='store_true')
+    parser.add_argument("-i", "--intermediate", action='store_true')
     args = parser.parse_args()
 
     print 'Source path: ' + src_path
@@ -60,13 +75,14 @@ def main():
         start = time.time()
         for name in filenames:
             template = get_template(name.replace(SRC_DIR, DEST_DIR))
-            generate_results(name, template, temp=False)
+            generate_results(name, template, time=True)
         print "%f seconds wall time" % (time.time() - start)
     else:
         for name in filenames:
             template = get_template(name.replace(SRC_DIR, DEST_DIR))
-            generate_results(name, template)
-
+            generate_results(name, template,
+                             intermediate=args.intermediate,
+                             resize=args.resize)
 
 if __name__ == '__main__':
     main()
