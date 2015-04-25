@@ -6,10 +6,16 @@ import numpy as np
 import cv2
 from itertools import combinations
 
+BLUE = (0, 0, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+
 def get_intersections(img, lines):
+  """Get the intersections of lines inside img."""
   height, width, _ = img.shape
   line_count = len(lines)
-  intersections = [[[] for i in xrange(line_count)] for j in xrange(line_count)]
+  intersections = [[[] for i in xrange(line_count)]
+                    for j in xrange(line_count)]
 
   for i, pointsa in enumerate(lines):
     x1, y1, x2, y2 = pointsa
@@ -32,38 +38,47 @@ def get_intersections(img, lines):
   return intersections
 
 def annotate_intersections(img, intersections):
+  """Annotate intersections in img."""
   temp = np.array(img)
   for row in intersections:
     for col in row:
       if len(col) > 0:
-        cv2.circle(temp, col, 20, (255, 0, 0), 10)
+        cv2.circle(temp, col, 20, RED, 10)
 
   return temp
 
 def annotate_corners(img, corners):
+  """Annotate corners in img"""
   temp = np.array(img)
   for x, y in corners:
-    cv2.circle(temp, (x, y), 20, (0, 255, 0), 10)
+    cv2.circle(temp, (x, y), 20, GREEN, 10)
   return temp
 
 def get_corners(lines, intersections):
-  return np.array(list(set(i for j in intersections for i in j if len(i) > 0)),
+  """Get corners among intersections of lines.
+
+     Limitation: this can only handle len(lines) == 4
+  """
+  return np.array(list(set(i for j in intersections
+                             for i in j if len(i) > 0)),
                   dtype=np.float32)[:4]
 
-def filter_regular(lines, margin=np.pi/18):
-  regular = np.pi/2
+def filter_perpendicular(lines, margin):
+  """Filter out lines without enough perpendicular intersections."""
+  perpendicular = np.pi/2
   count = np.zeros(len(lines))
 
   idxs = combinations(xrange(len(lines)), 2)
 
   for a, b in idxs:
-    if abs(abs(lines[a][1] - lines[b][1]) - regular) < margin:
+    if abs(abs(lines[a][1] - lines[b][1]) - perpendicular) < margin:
       count[a] += 1
       count[b] += 1
 
   return lines[count >= 2]
 
 def eliminate_duplicates(img, lines, threshold):
+  """Eliminate duplicates(overlapped lines)."""
   eliminated = np.zeros(len(lines), dtype=bool)
   min_distance = max(img.shape) * threshold
   min_theta = np.pi * threshold
@@ -84,6 +99,7 @@ def eliminate_duplicates(img, lines, threshold):
   return lines[eliminated == False]
 
 def line_distance(line_a, line_b):
+  """Get distance between two lines in polar system."""
   rho_a, theta_a = line_a
   rho_b, theta_b = line_b
 
@@ -92,6 +108,7 @@ def line_distance(line_a, line_b):
   return np.sqrt(result)
 
 def to_cartesian(img, lines):
+  """Convert lines in polar system to lines in Cartesian system."""
   height, width, _ = img.shape
   coff = max(height, width)
   cartesian = []
@@ -104,6 +121,7 @@ def to_cartesian(img, lines):
   return cartesian
 
 def annotate_lines(img, lines):
+  """Annotate lines in img."""
   annnotated = np.array(img)
 
   for x1, y1, x2, y2 in lines:
@@ -112,6 +130,7 @@ def annotate_lines(img, lines):
   return annnotated.astype(np.uint8)
 
 def reorder(corners):
+  """Find the orientation between corners and reorder them."""
   new_corners = np.array(corners)
   mean = np.mean(corners, axis=0)
 
@@ -138,6 +157,7 @@ def correct_perspective(img, threshold_max=140,
                         theta=np.pi/180,
                         threshold_intersect=250,
                         threshold_distance=0.15,
+                        perpendicular_margin=np.pi/18,
                         intermediate=True):
 
   # ------------- get binary image -----------
@@ -159,13 +179,13 @@ def correct_perspective(img, threshold_max=140,
   # ------------- get lines ------------------
   lines = cv2.HoughLines(edges, rho, theta, threshold_intersect)
 
-  lines = filter_regular(lines[0])
+  lines = filter_perpendicular(lines[0], perpendicular_margin)
   lines = eliminate_duplicates(img, lines, threshold_distance)
 
   while (len(lines) < 4):
     threshold_intersect -= 10
     lines = cv2.HoughLines(edges, rho, theta, threshold_intersect)
-    lines = filter_regular(lines[0])
+    lines = filter_perpendicular(lines[0], perpendicular_margin)
     lines = eliminate_duplicates(img, lines, threshold_distance)
 
   cartesian = to_cartesian(img, lines)
@@ -182,6 +202,7 @@ def correct_perspective(img, threshold_max=140,
     corners_annotated = Image.fromarray(annotate_corners(lines_annotated, corners))
 
   # ------------- warp ----------------------
+  # Calculate new corners that has the A4 aspect ratio
   height, width, _ = img.shape
   min_coff = min(height, width)
   if height > width:
