@@ -4,10 +4,7 @@
 from PIL import Image
 import numpy as np
 import cv2
-from operator import itemgetter
 from itertools import combinations
-from math import sqrt
-import glob
 
 def get_intersections(img, lines):
   height, width, _ = img.shape
@@ -143,7 +140,7 @@ def correct_perspective(img, threshold_max=140,
                         threshold_distance=0.15,
                         temp=True):
 
-# ------------- get binary image -----------
+  # ------------- get binary image -----------
   gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
   if temp:
     gray_im = Image.fromarray(gray)
@@ -158,7 +155,6 @@ def correct_perspective(img, threshold_max=140,
   edges = cv2.Canny(blurred, threshold_min, threshold_max)
   if temp:
     edges_im = Image.fromarray(edges)
-    edges_im.save('edges.jpg')
 
   # ------------- get lines ------------------
   lines = cv2.HoughLines(edges, rho, theta, threshold_intersect)
@@ -176,7 +172,6 @@ def correct_perspective(img, threshold_max=140,
 
   if temp:
     lines_annotated = Image.fromarray(annotate_lines(img, cartesian))
-    # lines_annotated.show()#save('lines.jpg')
 
   intersections = get_intersections(img, cartesian)
 
@@ -185,7 +180,6 @@ def correct_perspective(img, threshold_max=140,
   print "number of corners: ", len(corners)
   if temp:
     corners_annotated = Image.fromarray(annotate_corners(lines_annotated, corners))
-    corners_annotated.save('corners.jpg')
 
   # ------------- warp ----------------------
   height, width, _ = img.shape
